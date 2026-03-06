@@ -1,55 +1,122 @@
 #!/bin/bash
 set -e
 
+BORE_PORT="${BORE_PORT:-48251}"
+
 echo "════════════════════════════════════════"
-echo "  🐧 Linux Server + Playit.gg"
+echo "  🐧 Linux Server + Keep Alive"
 echo "  🔑 Jelszó: 2003"
+echo "  📌 Fix SSH port: ${BORE_PORT}"
 echo "════════════════════════════════════════"
 
+# ── Jelszavak ──
 echo 'root:2003' | chpasswd
 echo 'admin:2003' | chpasswd
+echo "[OK] Jelszó: 2003"
 
-# Eredeti Keep-Alive script
+# ── Indításkori cleanup ──
+echo "[INFO] Indításkori memória tisztítás..."
+apt-get clean 2>/dev/null || true
+journalctl --vacuum-size=50M 2>/dev/null || true
+find /tmp -type f -mtime +1 -delete 2>/dev/null || true
+pip3 cache purge 2>/dev/null || true
+echo "[OK] Cleanup kész"
+
+# ── SFTP info ──
+cat > /var/www/html/sftp.txt << EOF
+Tunnel indítása (port: ${BORE_PORT})...
+Várj 15 másodpercet!
+
+ssh root@bore.pub -p ${BORE_PORT}
+Jelszó: 2003
+EOF
+
+# ── Bore wrapper script (fix port + újrapróbálkozás) ──
+cat > /usr/local/bin/bore-wrapper.sh << BORESCRIPT
+#!/bin/bash
+echo "[BORE] Fix port: ${BORE_PORT}"
+
+while true; do
+    echo "[BORE] \$(date '+%H:%M:%S') Csatlakozás bore.pub:${BORE_PORT}..."
+    /usr/local/bin/bore local 22 --to bore.pub --port ${BORE_PORT} 2>&1
+    echo "[BORE] \$(date '+%H:%M:%S') Megszakadt, újra 5mp múlva..."
+    sleep 5
+done
+BORESCRIPT
+
+chmod +x /usr/local/bin/bore-wrapper.sh
+
+# ── Keep-Alive script ──
 cat > /usr/local/bin/keep-alive.sh << 'KEEPALIVE'
 #!/bin/bash
+RENDER_URL="${RENDER_EXTERNAL_URL:-}"
+echo "[KEEP-ALIVE] Indítás..."
+echo "[KEEP-ALIVE] URL: $RENDER_URL"
+
 while true; do
     sleep 300
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[KEEP-ALIVE] Ping: $TIMESTAMP"
+    if [ -n "$RENDER_URL" ]; then
+        curl -s -o /dev/null -w "External: %{http_code}\n" "$RENDER_URL" 2>/dev/null || true
+    fi
     curl -s -o /dev/null "http://127.0.0.1:6969" 2>/dev/null || true
+    echo "[KEEP-ALIVE] OK"
 done
 KEEPALIVE
+
 chmod +x /usr/local/bin/keep-alive.sh
 
-# SFTP frissítő (Módosítva Playit-hez)
-cat > /usr/local/bin/update-sftp.sh << 'SCRIPT'
+# ── SFTP frissítő (fix portot használ) ──
+cat > /usr/local/bin/update-sftp.sh << SCRIPT
 #!/bin/bash
-while sleep 10; do
-    cat > /var/www/html/sftp.txt << EOF
-AKTÍV (Playit.gg)
+while sleep 5; do
+    if [ -f /var/log/bore.log ]; then
+        if grep -q 'bore\.pub' /var/log/bore.log 2>/dev/null; then
+            cat > /var/www/html/sftp.txt << EOF
+AKTIV
 
-A fix címedet a playit.gg oldalon találod 
-a regisztrált Tunnel alatt!
-
-Példa: ssh root@valami.ply.gg -p 12345
+SSH: ssh root@bore.pub -p ${BORE_PORT}
 Jelszó: 2003
 
+FileZilla (SFTP):
+  Protocol: SFTP
+  Host: bore.pub
+  Port: ${BORE_PORT}
+  User: root
+  Pass: 2003
+
+📌 Fix port: ${BORE_PORT} (nem változik!)
+
 ✅ Keep-Alive AKTÍV
-Frissítve: $(date '+%H:%M:%S')
+   Szerver 24/7 fut!
+   Automatikus cleanup!
+
+Frissítve: \$(date '+%H:%M:%S')
 EOF
+        fi
+    fi
 done
 SCRIPT
+
 chmod +x /usr/local/bin/update-sftp.sh
 
-# Eredeti Auto cleanup
+# ── Auto cleanup ──
 cat > /usr/local/bin/auto-cleanup.sh << 'AUTOCLEAN'
 #!/bin/bash
 while true; do
-    if [ "$(date +%H)" -eq "03" ]; then
+    CURRENT_HOUR=$(date +%H)
+    if [ "$CURRENT_HOUR" -eq 3 ]; then
+        echo "[AUTO-CLEANUP] $(date) - Cleanup indítása..."
         /usr/local/bin/cleanup.sh >> /var/log/cleanup.log 2>&1
+        echo "[AUTO-CLEANUP] Kész!"
         sleep 3600
     fi
     sleep 300
 done
 AUTOCLEAN
+
 chmod +x /usr/local/bin/auto-cleanup.sh
 
+echo "[INFO] Supervisord indítása..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
