@@ -1,10 +1,6 @@
 #!/bin/bash
 set -e
 
-# ── Hostname beállítás ──
-hostname Szaby
-echo "Szaby" > /etc/hostname
-
 BORE_PORT="${BORE_PORT:-48251}"
 
 echo "════════════════════════════════════════"
