@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     screen \
     jq \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ── ttyd (web terminál) ──
 RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64 \
@@ -64,6 +64,8 @@ alias ll='ls -lah'
 alias cls='clear'
 alias neo='neofetch'
 alias info='clear && neofetch && echo "" && cat /var/www/html/sftp.txt'
+alias cleanup='bash /usr/local/bin/cleanup.sh'
+alias mem='free -h && echo "" && df -h /'
 
 # Neofetch CSAK AZ ELSŐ SSH csatlakozáskor (boot után)
 if [ -t 1 ] && [ ! -f /tmp/.neofetch_shown ]; then
@@ -77,6 +79,8 @@ if [ -t 1 ] && [ ! -f /tmp/.neofetch_shown ]; then
     echo "  📂 Weboldal: /var/www/html/"
     echo "  📡 SFTP info: cat /var/www/html/sftp.txt"
     echo "  🖥️  Neofetch újra: neo"
+    echo "  🧹 Memória tisztítás: cleanup"
+    echo "  📊 Memória állapot: mem"
     echo "═══════════════════════════════════════════════"
     echo ""
 fi
@@ -84,6 +88,70 @@ BASHRC
 
 RUN cp /root/.bashrc /home/admin/.bashrc && \
     chown admin:admin /home/admin/.bashrc
+
+# ── Cleanup script ──
+RUN cat > /usr/local/bin/cleanup.sh << 'CLEANUP'
+#!/bin/bash
+echo "════════════════════════════════════════"
+echo "  🧹 MEMÓRIA TISZTÍTÁS"
+echo "════════════════════════════════════════"
+
+echo "📊 ELŐTTE:"
+free -h | grep Mem
+df -h / | grep -v Filesystem
+
+echo ""
+echo "🧹 Tisztítás folyamatban..."
+
+# Apt cache
+echo "  [1/7] Apt cache..."
+apt-get clean 2>/dev/null || true
+apt-get autoclean 2>/dev/null || true
+apt-get autoremove -y 2>/dev/null || true
+
+# Systemd journal
+echo "  [2/7] Systemd journal..."
+journalctl --vacuum-size=50M 2>/dev/null || true
+journalctl --vacuum-time=2d 2>/dev/null || true
+
+# Tmp fájlok
+echo "  [3/7] Tmp fájlok..."
+find /tmp -type f -mtime +1 -delete 2>/dev/null || true
+find /var/tmp -type f -mtime +1 -delete 2>/dev/null || true
+
+# Python cache
+echo "  [4/7] Python cache..."
+find /root -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+find /home -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+pip3 cache purge 2>/dev/null || true
+
+# NPM cache
+echo "  [5/7] NPM cache..."
+npm cache clean --force 2>/dev/null || true
+
+# Régi logok
+echo "  [6/7] Régi logok..."
+find /var/log -type f -name "*.log.*" -delete 2>/dev/null || true
+find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
+find /var/log -type f -size +50M -exec truncate -s 10M {} \; 2>/dev/null || true
+
+# Supervisor logok
+echo "  [7/7] Supervisor logok..."
+truncate -s 0 /var/log/supervisord.log 2>/dev/null || true
+truncate -s 0 /var/log/bore.log 2>/dev/null || true
+truncate -s 0 /var/log/keepalive.log 2>/dev/null || true
+
+echo ""
+echo "✅ KÉSZ!"
+echo ""
+echo "📊 UTÁNA:"
+free -h | grep Mem
+df -h / | grep -v Filesystem
+echo ""
+echo "════════════════════════════════════════"
+CLEANUP
+
+RUN chmod +x /usr/local/bin/cleanup.sh
 
 # ── Munkamappák ──
 RUN mkdir -p /var/www/html /root/projects /home/admin/projects && \
@@ -113,6 +181,8 @@ RUN cat > /var/www/html/index.html << 'HTML'
             color:#fff;text-decoration:none;border-radius:8px;font-size:16px;
             font-weight:600;margin-top:10px;transition:background .2s}
         .btn:hover{background:#2ea043}
+        .btn-red{background:#da3633}
+        .btn-red:hover{background:#f85149}
         .status{text-align:center;padding:15px;border-radius:8px;font-size:1.2em;
             font-weight:bold;margin-bottom:15px}
         .active{background:#0d2818;border:1px solid #238636;color:#7ee787}
@@ -130,7 +200,7 @@ RUN cat > /var/www/html/index.html << 'HTML'
     
     <div class="keepalive">
         <h3>⚡ Keep-Alive AKTÍV</h3>
-        <p>Szerver 24/7 fut • Adatok megmaradnak • SSH port stabil</p>
+        <p>Szerver 24/7 fut • Adatok megmaradnak • Automatikus memória tisztítás</p>
     </div>
 
     <div class="status" id="status"><span class="loading">🔄 Betöltés...</span></div>
@@ -168,14 +238,18 @@ RUN cat > /var/www/html/index.html << 'HTML'
             <h2>📚 Hasznos parancsok</h2>
             <pre>neo               # Neofetch (rendszer info)
 info              # Neofetch + SFTP info
+mem               # Memória állapot
+cleanup           # Memória tisztítás
 htop              # Folyamatok
 cd /var/www/html  # Weboldal mappa
 nano index.html   # Szerkesztés
 ll                # Fájlok listázása
-python3 app.py    # Python futtatás
 
 # Keep-Alive log:
-tail -f /var/log/keepalive.log</pre>
+tail -f /var/log/keepalive.log
+
+# Cleanup log:
+tail -f /var/log/cleanup.log</pre>
         </div>
     </div>
 </div>
