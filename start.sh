@@ -8,9 +8,8 @@ echo "════════════════════════�
 
 echo 'root:2003' | chpasswd
 echo 'admin:2003' | chpasswd
-echo "[OK] Jelszó: 2003"
 
-# Keep-Alive script
+# Eredeti Keep-Alive script
 cat > /usr/local/bin/keep-alive.sh << 'KEEPALIVE'
 #!/bin/bash
 while true; do
@@ -20,15 +19,18 @@ done
 KEEPALIVE
 chmod +x /usr/local/bin/keep-alive.sh
 
-# SFTP frissítő
+# SFTP frissítő (Módosítva Playit-hez)
 cat > /usr/local/bin/update-sftp.sh << 'SCRIPT'
 #!/bin/bash
 while sleep 10; do
     cat > /var/www/html/sftp.txt << EOF
 AKTÍV (Playit.gg)
 
-A fix címedet a playit.gg oldalon találod!
-User: root | Pass: 2003
+A fix címedet a playit.gg oldalon találod 
+a regisztrált Tunnel alatt!
+
+Példa: ssh root@valami.ply.gg -p 12345
+Jelszó: 2003
 
 ✅ Keep-Alive AKTÍV
 Frissítve: $(date '+%H:%M:%S')
@@ -37,7 +39,7 @@ done
 SCRIPT
 chmod +x /usr/local/bin/update-sftp.sh
 
-# Auto cleanup
+# Eredeti Auto cleanup
 cat > /usr/local/bin/auto-cleanup.sh << 'AUTOCLEAN'
 #!/bin/bash
 while true; do
@@ -50,5 +52,4 @@ done
 AUTOCLEAN
 chmod +x /usr/local/bin/auto-cleanup.sh
 
-echo "[INFO] Supervisord indítása..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
