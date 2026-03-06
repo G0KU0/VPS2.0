@@ -58,7 +58,7 @@ RUN echo 'root:2003' | chpasswd && \
 
 # ── Shell beállítás ──
 RUN cat > /root/.bashrc << 'BASHRC'
-export PS1='\[\033[01;32m\]\u@linux-server\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+export PS1='\[\033[01;32m\]\u@Szaby\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 alias ls='ls --color=auto'
 alias ll='ls -lah'
