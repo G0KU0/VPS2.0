@@ -3,7 +3,7 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PORT=6969
 
-# ── Alapcsomagok (Eredeti lista + gnupg a playit-hez) ──
+# ── Alapcsomagok ──
 RUN apt-get update && apt-get install -y \
     dropbear \
     openssh-sftp-server \
@@ -56,7 +56,7 @@ RUN echo 'root:2003' | chpasswd && \
     usermod -aG sudo admin && \
     echo 'admin ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# ── Shell beállítás (Eredeti aliasok és PS1) ──
+# ── Shell beállítás (aliasok és PS1) ──
 RUN cat > /root/.bashrc << 'BASHRC'
 export PS1='\[\033[01;32m\]\u@linux-server\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -82,27 +82,24 @@ if [ -t 1 ] && [ ! -f /tmp/.neofetch_shown ]; then
     echo "  🧹 Memória tisztítás: cleanup"
     echo "  📊 Memória állapot: mem"
     echo "═══════════════════════════════════════════════"
-    echo ""
 fi
 BASHRC
 
 RUN cp /root/.bashrc /home/admin/.bashrc && \
     chown admin:admin /home/admin/.bashrc
 
-# ── Cleanup script (Eredeti tartalom) ──
+# ── Cleanup script ──
 RUN cat > /usr/local/bin/cleanup.sh << 'CLEANUP'
 #!/bin/bash
-echo "════════════════════════════════════════"
-echo "  🧹 MEMÓRIA TISZTÍTÁS"
-echo "════════════════════════════════════════"
-free -h | grep Mem
+echo "🧹 Tisztítás folyamatban..."
 apt-get clean 2>/dev/null || true
 journalctl --vacuum-size=50M 2>/dev/null || true
 find /tmp -type f -mtime +1 -delete 2>/dev/null || true
 pip3 cache purge 2>/dev/null || true
 npm cache clean --force 2>/dev/null || true
 truncate -s 0 /var/log/supervisord.log 2>/dev/null || true
-echo "✅ KÉSZ!"
+truncate -s 0 /var/log/playit.log 2>/dev/null || true
+echo "✅ Kész!"
 CLEANUP
 RUN chmod +x /usr/local/bin/cleanup.sh
 
@@ -110,7 +107,7 @@ RUN chmod +x /usr/local/bin/cleanup.sh
 RUN mkdir -p /var/www/html /root/projects /home/admin/projects && \
     chown -R admin:admin /home/admin
 
-# ── Weboldal (index.html - Eredeti tartalom) ──
+# ── Weboldal (index.html) ──
 RUN cat > /var/www/html/index.html << 'HTML'
 <!DOCTYPE html>
 <html lang="hu">
@@ -123,65 +120,29 @@ RUN cat > /var/www/html/index.html << 'HTML'
         body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,sans-serif;padding:20px}
         .wrap{max-width:1100px;margin:0 auto}
         h1{color:#58a6ff;text-align:center;font-size:2.5em;margin-bottom:25px}
-        .row{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px}
-        .card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px}
+        .card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;margin-bottom:15px}
         .card h2{color:#7ee787;margin-bottom:12px;font-size:1.2em}
-        .full{grid-column:1/-1}
-        pre{background:#0d1117;padding:15px;border-radius:6px;color:#7ee787;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-x:auto}
-        .btn{display:block;text-align:center;padding:14px;background:#238636;color:#fff;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;margin-top:10px;transition:background .2s}
-        .btn:hover{background:#2ea043}
-        .status{text-align:center;padding:15px;border-radius:8px;font-size:1.2em;font-weight:bold;margin-bottom:15px;background:#0d2818;border:1px solid #238636;color:#7ee787}
-        .keepalive{background:#0d2818;border:1px solid #238636;padding:15px;border-radius:8px;text-align:center;margin-bottom:15px}
-        .keepalive h3{color:#7ee787;margin-bottom:5px}
-        @media(max-width:768px){.row{grid-template-columns:1fr}}
+        pre{background:#0d1117;padding:15px;border-radius:6px;color:#7ee787;font-size:13px;white-space:pre-wrap}
+        .btn{display:block;text-align:center;padding:14px;background:#238636;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;margin-top:10px}
+        .status{text-align:center;padding:15px;border-radius:8px;font-weight:bold;margin-bottom:15px;background:#0d2818;border:1px solid #238636;color:#7ee787}
     </style>
 </head>
 <body>
 <div class="wrap">
     <h1>🐧 Linux Server (Playit.gg)</h1>
-    <div class="keepalive">
-        <h3>⚡ Keep-Alive AKTÍV</h3>
-        <p>Szerver 24/7 fut • Adatok megmaradnak • Automatikus memória tisztítás</p>
-    </div>
     <div class="status">✅ Szerver aktív!</div>
-    <div class="row">
-        <div class="card full">
-            <h2>🔐 SSH & SFTP Információ</h2>
-            <pre id="info">Betöltés...</pre>
-        </div>
+    <div class="card">
+        <h2>🔐 Kapcsolati adatok</h2>
+        <pre id="info">Betöltés...</pre>
     </div>
-    <div class="row">
-        <div class="card full">
-            <h2>🖥️ Web Terminál</h2>
-            <a href="/terminal" class="btn" target="_blank">Terminál megnyitása új ablakban</a>
-        </div>
-    </div>
-    <div class="row">
-        <div class="card full">
-            <h2>🖥️ Beágyazott Terminál</h2>
-            <div style="background:#000;border-radius:8px;overflow:hidden;height:500px">
-                <iframe src="/terminal" style="width:100%;height:100%;border:none"></iframe>
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="card full">
-            <h2>📚 Hasznos parancsok</h2>
-            <pre>neo               # Neofetch (rendszer info)
-info              # Neofetch + SFTP info
-mem               # Memória állapot
-cleanup           # Memória tisztítás
-htop              # Folyamatok</pre>
-        </div>
+    <div class="card">
+        <h2>🖥️ Web Terminál</h2>
+        <a href="/terminal" class="btn" target="_blank">Terminál megnyitása</a>
     </div>
 </div>
 <script>
-function load(){
-    fetch('/sftp.txt').then(r=>r.text()).then(t=>{
-        document.getElementById('info').textContent=t;
-    });
-}
-load();setInterval(load,5000);
+    function load(){ fetch('/sftp.txt').then(r=>r.text()).then(t=>document.getElementById('info').textContent=t); }
+    load(); setInterval(load, 5000);
 </script>
 </body>
 </html>
@@ -191,7 +152,6 @@ HTML
 RUN cat > /etc/nginx/sites-available/default << 'NGINX'
 server {
     listen 6969 default_server;
-    server_name _;
     root /var/www/html;
     index index.html;
     location / { try_files $uri $uri/ =404; }
