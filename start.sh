@@ -11,6 +11,14 @@ echo 'root:2003' | chpasswd
 echo 'admin:2003' | chpasswd
 echo "[OK] Jelszó: 2003"
 
+# ── Indításkori cleanup ──
+echo "[INFO] Indításkori memória tisztítás..."
+apt-get clean 2>/dev/null || true
+journalctl --vacuum-size=50M 2>/dev/null || true
+find /tmp -type f -mtime +1 -delete 2>/dev/null || true
+pip3 cache purge 2>/dev/null || true
+echo "[OK] Cleanup kész"
+
 # ── SFTP info ──
 cat > /var/www/html/sftp.txt << 'EOF'
 Tunnel indítása...
@@ -71,7 +79,7 @@ FileZilla (SFTP):
 
 ✅ Keep-Alive AKTÍV
    Szerver 24/7 fut!
-   Adatok megmaradnak!
+   Automatikus cleanup!
 
 Frissítve: $(date '+%H:%M:%S')
 EOF
@@ -81,6 +89,24 @@ done
 SCRIPT
 
 chmod +x /usr/local/bin/update-sftp.sh
+
+# ── Auto cleanup (naponta egyszer 3 órakor) ──
+cat > /usr/local/bin/auto-cleanup.sh << 'AUTOCLEAN'
+#!/bin/bash
+while true; do
+    # Várj következő 3 óráig
+    CURRENT_HOUR=$(date +%H)
+    if [ "$CURRENT_HOUR" -eq 3 ]; then
+        echo "[AUTO-CLEANUP] $(date) - Cleanup indítása..."
+        /usr/local/bin/cleanup.sh >> /var/log/cleanup.log 2>&1
+        echo "[AUTO-CLEANUP] Kész!"
+        sleep 3600  # 1 óra várás
+    fi
+    sleep 300  # 5 perc check
+done
+AUTOCLEAN
+
+chmod +x /usr/local/bin/auto-cleanup.sh
 
 echo "[INFO] Supervisord indítása..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
