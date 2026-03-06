@@ -6,14 +6,17 @@ echo "  🐧 Linux Server + Playit.gg"
 echo "  🔑 Jelszó: 2003"
 echo "════════════════════════════════════════"
 
+# ── Jelszavak ──
 echo 'root:2003' | chpasswd
 echo 'admin:2003' | chpasswd
+echo "[OK] Jelszó: 2003"
 
-# Eredeti cleanup hívás
+# ── Indításkori cleanup ──
 apt-get clean 2>/dev/null || true
 journalctl --vacuum-size=50M 2>/dev/null || true
+find /tmp -type f -mtime +1 -delete 2>/dev/null || true
 
-# Eredeti Keep-Alive script (5 percenként pingeli önmagát)
+# ── Keep-Alive script (5 percenként) ──
 cat > /usr/local/bin/keep-alive.sh << 'KEEPALIVE'
 #!/bin/bash
 RENDER_URL="${RENDER_EXTERNAL_URL:-}"
@@ -29,17 +32,17 @@ done
 KEEPALIVE
 chmod +x /usr/local/bin/keep-alive.sh
 
-# Eredeti SFTP frissítő (Módosítva Playit-hez)
+# ── SFTP frissítő (Fix Playit.gg eléréshez) ──
 cat > /usr/local/bin/update-sftp.sh << 'SCRIPT'
 #!/bin/bash
 while sleep 10; do
     cat > /var/www/html/sftp.txt << EOF
-AKTÍV (Playit.gg)
+AKTÍV (Playit.gg Tunnel)
 
-A fix címedet a playit.gg oldalon találod!
+A fix címedet a playit.gg oldalon találod 
+a regisztrált Tunnel alatt!
+
 Példa: ssh root@valami.ply.gg -p 12345
-
-Felhasználó: root
 Jelszó: 2003
 
 ✅ Keep-Alive AKTÍV
@@ -49,7 +52,7 @@ done
 SCRIPT
 chmod +x /usr/local/bin/update-sftp.sh
 
-# Eredeti Auto cleanup (naponta 3 órakor)
+# ── Auto cleanup (naponta 3 órakor) ──
 cat > /usr/local/bin/auto-cleanup.sh << 'AUTOCLEAN'
 #!/bin/bash
 while true; do
