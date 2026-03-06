@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64 \
     -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
 
-# ── Playit.gg tunnel telepítése ──
+# ── Playit.gg telepítése ──
 RUN curl -SsL https://playit-cloud.github.io/ppa/key.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/playit.gpg && \
     echo "deb [arch=amd64] https://playit-cloud.github.io/ppa/data ./ " | tee /etc/apt/sources.list.d/playit.list && \
     apt-get update && apt-get install -y playit
@@ -56,7 +56,7 @@ RUN echo 'root:2003' | chpasswd && \
     usermod -aG sudo admin && \
     echo 'admin ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# ── Shell beállítás (aliasok és PS1) ──
+# ── Shell beállítás (Eredeti bashrc minden funkcióval) ──
 RUN cat > /root/.bashrc << 'BASHRC'
 export PS1='\[\033[01;32m\]\u@linux-server\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -76,19 +76,17 @@ if [ -t 1 ] && [ ! -f /tmp/.neofetch_shown ]; then
     echo "═══════════════════════════════════════════════"
     echo "  ✅ Szerver fut! (Playit.gg aktív)"
     echo "  🔑 Jelszó: 2003"
-    echo "  📂 Weboldal: /var/www/html/"
     echo "  📡 SFTP info: cat /var/www/html/sftp.txt"
-    echo "  🖥️  Neofetch újra: neo"
-    echo "  🧹 Memória tisztítás: cleanup"
     echo "  📊 Memória állapot: mem"
     echo "═══════════════════════════════════════════════"
+    echo ""
 fi
 BASHRC
 
 RUN cp /root/.bashrc /home/admin/.bashrc && \
     chown admin:admin /home/admin/.bashrc
 
-# ── Cleanup script ──
+# ── Eredeti Cleanup script ──
 RUN cat > /usr/local/bin/cleanup.sh << 'CLEANUP'
 #!/bin/bash
 echo "🧹 Tisztítás folyamatban..."
@@ -152,6 +150,7 @@ HTML
 RUN cat > /etc/nginx/sites-available/default << 'NGINX'
 server {
     listen 6969 default_server;
+    server_name _;
     root /var/www/html;
     index index.html;
     location / { try_files $uri $uri/ =404; }
