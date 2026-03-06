@@ -7,3 +7,5 @@ services:
     envVars:
       - key: PORT
         value: "6969"
+      - key: CLOUDFLARE_TOKEN
+        value: "eyJhIjoiOTZhODlhZjQ5MTRjMDE0NTliZjVmNjFiODhiOTQzMmUiLCJ0IjoiYmRkZThiOTAtNmVmZi00NGQzLTkwMWUtYWQwNjcwOTM4N2RjIiwicyI6Ik1EY3lZVEJrTWprdFlXRTNPUzAwTTJaaExXRTFNVFF0WVdFMk5tVXlZamMzTlRsbSJ9"
