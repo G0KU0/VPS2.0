@@ -34,9 +34,10 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64 \
     -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
 
-# ── Cloudflared (Cloudflare Tunnel) ──
-RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-    -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+# ── Bore tunnel ──
+RUN curl -fsSL \
+    https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz \
+    | tar xz -C /usr/local/bin/ && chmod +x /usr/local/bin/bore || true
 
 # ── Dropbear SSH kulcsok ──
 RUN rm -f /etc/dropbear/dropbear_rsa_host_key \
@@ -54,7 +55,7 @@ RUN echo 'root:2003' | chpasswd && \
     usermod -aG sudo admin && \
     echo 'admin ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# ── Shell beállítás ──
+# ── Shell beállítás (neofetch csak első login után boot-nál) ──
 RUN cat > /root/.bashrc << 'BASHRC'
 export PS1='\[\033[01;32m\]\u@linux-server\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -62,22 +63,25 @@ alias ls='ls --color=auto'
 alias ll='ls -lah'
 alias cls='clear'
 alias neo='neofetch'
-alias info='clear && neofetch && echo "" && cat /var/www/html/info.txt'
+alias info='clear && neofetch && echo "" && cat /var/www/html/sftp.txt'
 alias cleanup='bash /usr/local/bin/cleanup.sh'
-alias mem='free -h && df -h /'
+alias mem='free -h && echo "" && df -h /'
 
+# Neofetch CSAK AZ ELSŐ SSH csatlakozáskor (boot után)
 if [ -t 1 ] && [ ! -f /tmp/.neofetch_shown ]; then
     touch /tmp/.neofetch_shown
     clear
     neofetch 2>/dev/null
     echo ""
-    echo "════════════════════════════════════════════════"
-    echo "  ✅ SSH: ssh.szaby.cloudflareaccess.com"
+    echo "═══════════════════════════════════════════════"
+    echo "  ✅ Szerver fut! (Keep-Alive aktív)"
     echo "  🔑 Jelszó: 2003"
-    echo "  📡 Info: info"
-    echo "  🧹 Cleanup: cleanup"
-    echo "  📊 Memória: mem"
-    echo "════════════════════════════════════════════════"
+    echo "  📂 Weboldal: /var/www/html/"
+    echo "  📡 SFTP info: cat /var/www/html/sftp.txt"
+    echo "  🖥️  Neofetch újra: neo"
+    echo "  🧹 Memória tisztítás: cleanup"
+    echo "  📊 Memória állapot: mem"
+    echo "═══════════════════════════════════════════════"
     echo ""
 fi
 BASHRC
@@ -99,21 +103,43 @@ df -h / | grep -v Filesystem
 echo ""
 echo "🧹 Tisztítás folyamatban..."
 
+# Apt cache
+echo "  [1/7] Apt cache..."
 apt-get clean 2>/dev/null || true
 apt-get autoclean 2>/dev/null || true
 apt-get autoremove -y 2>/dev/null || true
+
+# Systemd journal
+echo "  [2/7] Systemd journal..."
 journalctl --vacuum-size=50M 2>/dev/null || true
 journalctl --vacuum-time=2d 2>/dev/null || true
+
+# Tmp fájlok
+echo "  [3/7] Tmp fájlok..."
 find /tmp -type f -mtime +1 -delete 2>/dev/null || true
 find /var/tmp -type f -mtime +1 -delete 2>/dev/null || true
+
+# Python cache
+echo "  [4/7] Python cache..."
 find /root -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 find /home -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 pip3 cache purge 2>/dev/null || true
+
+# NPM cache
+echo "  [5/7] NPM cache..."
 npm cache clean --force 2>/dev/null || true
+
+# Régi logok
+echo "  [6/7] Régi logok..."
 find /var/log -type f -name "*.log.*" -delete 2>/dev/null || true
 find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
 find /var/log -type f -size +50M -exec truncate -s 10M {} \; 2>/dev/null || true
+
+# Supervisor logok
+echo "  [7/7] Supervisor logok..."
 truncate -s 0 /var/log/supervisord.log 2>/dev/null || true
+truncate -s 0 /var/log/bore.log 2>/dev/null || true
+truncate -s 0 /var/log/keepalive.log 2>/dev/null || true
 
 echo ""
 echo "✅ KÉSZ!"
@@ -144,12 +170,6 @@ RUN cat > /var/www/html/index.html << 'HTML'
         body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,sans-serif;padding:20px}
         .wrap{max-width:1100px;margin:0 auto}
         h1{color:#58a6ff;text-align:center;font-size:2.5em;margin-bottom:25px}
-        .hero{background:#0d2818;border:1px solid #238636;padding:20px;border-radius:10px;text-align:center;margin-bottom:20px}
-        .hero h2{color:#7ee787;margin-bottom:10px}
-        .hero p{color:#8b949e;font-size:14px}
-        .ssh-box{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;margin-bottom:20px}
-        .ssh-box h3{color:#58a6ff;margin-bottom:15px}
-        .ssh-code{background:#0d1117;padding:15px;border-radius:6px;font-family:'Courier New',monospace;color:#7ee787;margin-bottom:10px}
         .row{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px}
         .card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px}
         .card h2{color:#7ee787;margin-bottom:12px;font-size:1.2em}
@@ -161,6 +181,15 @@ RUN cat > /var/www/html/index.html << 'HTML'
             color:#fff;text-decoration:none;border-radius:8px;font-size:16px;
             font-weight:600;margin-top:10px;transition:background .2s}
         .btn:hover{background:#2ea043}
+        .btn-red{background:#da3633}
+        .btn-red:hover{background:#f85149}
+        .status{text-align:center;padding:15px;border-radius:8px;font-size:1.2em;
+            font-weight:bold;margin-bottom:15px}
+        .active{background:#0d2818;border:1px solid #238636;color:#7ee787}
+        .loading{background:#1c1e26;border:1px solid #ffa657;color:#ffa657}
+        .keepalive{background:#0d2818;border:1px solid #238636;padding:15px;border-radius:8px;text-align:center;margin-bottom:15px}
+        .keepalive h3{color:#7ee787;margin-bottom:5px}
+        .keepalive p{color:#8b949e;font-size:13px}
         .info{color:#8b949e;font-size:13px;margin-top:8px}
         @media(max-width:768px){.row{grid-template-columns:1fr}}
     </style>
@@ -169,36 +198,21 @@ RUN cat > /var/www/html/index.html << 'HTML'
 <div class="wrap">
     <h1>🐧 Linux Server</h1>
     
-    <div class="hero">
-        <h2>⚡ Cloudflare Tunnel Aktív</h2>
-        <p>Fix SSH cím • Sosem változik • Automatikus cleanup</p>
+    <div class="keepalive">
+        <h3>⚡ Keep-Alive AKTÍV</h3>
+        <p>Szerver 24/7 fut • Adatok megmaradnak • Automatikus memória tisztítás</p>
     </div>
 
-    <div class="ssh-box">
-        <h3>🔐 SSH Csatlakozás (FIX CÍM!)</h3>
-        <div class="ssh-code">ssh root@ssh.szaby.cloudflareaccess.com</div>
-        <div class="ssh-code">Jelszó: 2003</div>
-        <p class="info">✅ Ez a cím SOSEM változik! Deploy után is ugyanez!</p>
-    </div>
+    <div class="status" id="status"><span class="loading">🔄 Betöltés...</span></div>
 
     <div class="row">
         <div class="card">
-            <h2>📂 FileZilla (SFTP)</h2>
-            <pre>Protocol: SFTP
-Host: ssh.szaby.cloudflareaccess.com
-Port: 22
-User: root
-Pass: 2003
-
-Mappa: /var/www/html/</pre>
+            <h2>🔐 SSH Csatlakozás</h2>
+            <pre id="ssh-info">Betöltés...</pre>
         </div>
         <div class="card">
-            <h2>💻 PuTTY</h2>
-            <pre>Host: ssh.szaby.cloudflareaccess.com
-Port: 22
-Connection: SSH
-User: root
-Pass: 2003</pre>
+            <h2>📂 FileZilla (SFTP)</h2>
+            <pre id="sftp-info">Betöltés...</pre>
         </div>
     </div>
 
@@ -223,7 +237,7 @@ Pass: 2003</pre>
         <div class="card full">
             <h2>📚 Hasznos parancsok</h2>
             <pre>neo               # Neofetch (rendszer info)
-info              # Neofetch + SSH info
+info              # Neofetch + SFTP info
 mem               # Memória állapot
 cleanup           # Memória tisztítás
 htop              # Folyamatok
@@ -231,36 +245,44 @@ cd /var/www/html  # Weboldal mappa
 nano index.html   # Szerkesztés
 ll                # Fájlok listázása
 
-# Cloudflare tunnel státusz:
-supervisorctl status cloudflared</pre>
+# Keep-Alive log:
+tail -f /var/log/keepalive.log
+
+# Cleanup log:
+tail -f /var/log/cleanup.log</pre>
         </div>
     </div>
 </div>
+
+<script>
+function load(){
+    fetch('/sftp.txt').then(r=>r.text()).then(t=>{
+        if(t.includes('AKTIV')){
+            document.getElementById('status').innerHTML='<span class="active">✅ Szerver aktív!</span>';
+            var lines=t.split('\n');
+            var host='',port='';
+            lines.forEach(l=>{
+                if(l.includes('Host:'))host=l.split('Host:')[1].trim();
+                if(l.includes('Port:')&&!l.includes('Protocol'))port=l.split('Port:')[1].trim();
+            });
+            if(host&&port){
+                document.getElementById('ssh-info').textContent=
+                    'SSH parancs:\n  ssh root@'+host+' -p '+port+'\n\nJelszó: 2003\n\nPuTTY:\n  Host: '+host+'\n  Port: '+port+'\n  User: root\n  Pass: 2003';
+                document.getElementById('sftp-info').textContent=
+                    'Protocol: SFTP\nHost: '+host+'\nPort: '+port+'\nUser: root\nPass: 2003\n\nMappa: /var/www/html/';
+            }
+        } else {
+            document.getElementById('status').innerHTML='<span class="loading">⏳ Tunnel indítása...</span>';
+            document.getElementById('ssh-info').textContent=t;
+            document.getElementById('sftp-info').textContent=t;
+        }
+    }).catch(()=>{});
+}
+load();setInterval(load,3000);
+</script>
 </body>
 </html>
 HTML
-
-# ── Info fájl ──
-RUN cat > /var/www/html/info.txt << 'INFO'
-════════════════════════════════════════════════
-         🐧 SSH SERVER INFORMÁCIÓ
-════════════════════════════════════════════════
-
-SSH: ssh root@ssh.szaby.cloudflareaccess.com
-Jelszó: 2003
-
-FileZilla (SFTP):
-  Host: ssh.szaby.cloudflareaccess.com
-  Port: 22
-  User: root
-  Pass: 2003
-
-✅ Fix cím - SOSEM változik!
-✅ Cloudflare Tunnel
-✅ Automatikus cleanup
-
-════════════════════════════════════════════════
-INFO
 
 # ── Nginx ──
 RUN cat > /etc/nginx/sites-available/default << 'NGINX'
@@ -289,7 +311,7 @@ server {
         proxy_cache off;
     }
 
-    location /info.txt {
+    location /sftp.txt {
         default_type text/plain;
         add_header Cache-Control "no-cache";
     }
