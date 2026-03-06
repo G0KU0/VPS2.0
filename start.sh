@@ -6,44 +6,29 @@ echo "  🐧 Linux Server + Playit.gg"
 echo "  🔑 Jelszó: 2003"
 echo "════════════════════════════════════════"
 
-# ── Jelszavak ──
 echo 'root:2003' | chpasswd
 echo 'admin:2003' | chpasswd
 echo "[OK] Jelszó: 2003"
 
-# ── Indításkori cleanup ──
-apt-get clean 2>/dev/null || true
-journalctl --vacuum-size=50M 2>/dev/null || true
-find /tmp -type f -mtime +1 -delete 2>/dev/null || true
-
-# ── Keep-Alive script (5 percenként) ──
+# Keep-Alive script
 cat > /usr/local/bin/keep-alive.sh << 'KEEPALIVE'
 #!/bin/bash
-RENDER_URL="${RENDER_EXTERNAL_URL:-}"
 while true; do
     sleep 300
-    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[KEEP-ALIVE] Ping: $TIMESTAMP"
-    if [ -n "$RENDER_URL" ]; then
-        curl -s -o /dev/null "$RENDER_URL" 2>/dev/null || true
-    fi
     curl -s -o /dev/null "http://127.0.0.1:6969" 2>/dev/null || true
 done
 KEEPALIVE
 chmod +x /usr/local/bin/keep-alive.sh
 
-# ── SFTP frissítő (Fix Playit.gg eléréshez) ──
+# SFTP frissítő
 cat > /usr/local/bin/update-sftp.sh << 'SCRIPT'
 #!/bin/bash
 while sleep 10; do
     cat > /var/www/html/sftp.txt << EOF
-AKTÍV (Playit.gg Tunnel)
+AKTÍV (Playit.gg)
 
-A fix címedet a playit.gg oldalon találod 
-a regisztrált Tunnel alatt!
-
-Példa: ssh root@valami.ply.gg -p 12345
-Jelszó: 2003
+A fix címedet a playit.gg oldalon találod!
+User: root | Pass: 2003
 
 ✅ Keep-Alive AKTÍV
 Frissítve: $(date '+%H:%M:%S')
@@ -52,7 +37,7 @@ done
 SCRIPT
 chmod +x /usr/local/bin/update-sftp.sh
 
-# ── Auto cleanup (naponta 3 órakor) ──
+# Auto cleanup
 cat > /usr/local/bin/auto-cleanup.sh << 'AUTOCLEAN'
 #!/bin/bash
 while true; do
