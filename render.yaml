@@ -7,5 +7,5 @@ services:
     envVars:
       - key: PORT
         value: "6969"
-      - key: PLAYIT_SECRET
-        value: "45c45b1a5c667718afca780abc8807ab8e31cdeb08cd972c205853f0293249ac"
+      - key: BORE_PORT
+        value: "48251"
