@@ -2,55 +2,64 @@
 set -e
 
 echo "════════════════════════════════════════"
-echo "  🐧 Linux Server + Cloudflare Tunnel"
+echo "  🐧 Linux Server + Playit.gg"
 echo "  🔑 Jelszó: 2003"
 echo "════════════════════════════════════════"
 
-# ── Jelszavak ──
 echo 'root:2003' | chpasswd
 echo 'admin:2003' | chpasswd
-echo "[OK] Jelszó: 2003"
 
-# ── Indításkori cleanup ──
-echo "[INFO] Indításkori memória tisztítás..."
+# Eredeti cleanup hívás
 apt-get clean 2>/dev/null || true
 journalctl --vacuum-size=50M 2>/dev/null || true
-find /tmp -type f -mtime +1 -delete 2>/dev/null || true
-pip3 cache purge 2>/dev/null || true
-echo "[OK] Cleanup kész"
 
-# ── Keep-Alive script ──
+# Eredeti Keep-Alive script (5 percenként pingeli önmagát)
 cat > /usr/local/bin/keep-alive.sh << 'KEEPALIVE'
 #!/bin/bash
 RENDER_URL="${RENDER_EXTERNAL_URL:-}"
-echo "[KEEP-ALIVE] Indítás..."
 while true; do
     sleep 300
-    echo "[KEEP-ALIVE] Ping: $(date '+%H:%M:%S')"
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[KEEP-ALIVE] Ping: $TIMESTAMP"
     if [ -n "$RENDER_URL" ]; then
         curl -s -o /dev/null "$RENDER_URL" 2>/dev/null || true
     fi
     curl -s -o /dev/null "http://127.0.0.1:6969" 2>/dev/null || true
 done
 KEEPALIVE
-
 chmod +x /usr/local/bin/keep-alive.sh
 
-# ── Auto cleanup (naponta 3 órakor) ──
+# Eredeti SFTP frissítő (Módosítva Playit-hez)
+cat > /usr/local/bin/update-sftp.sh << 'SCRIPT'
+#!/bin/bash
+while sleep 10; do
+    cat > /var/www/html/sftp.txt << EOF
+AKTÍV (Playit.gg)
+
+A fix címedet a playit.gg oldalon találod!
+Példa: ssh root@valami.ply.gg -p 12345
+
+Felhasználó: root
+Jelszó: 2003
+
+✅ Keep-Alive AKTÍV
+Frissítve: $(date '+%H:%M:%S')
+EOF
+done
+SCRIPT
+chmod +x /usr/local/bin/update-sftp.sh
+
+# Eredeti Auto cleanup (naponta 3 órakor)
 cat > /usr/local/bin/auto-cleanup.sh << 'AUTOCLEAN'
 #!/bin/bash
 while true; do
-    CURRENT_HOUR=$(date +%H)
-    if [ "$CURRENT_HOUR" -eq 3 ]; then
-        echo "[AUTO-CLEANUP] $(date) - Cleanup indítása..."
+    if [ "$(date +%H)" -eq "03" ]; then
         /usr/local/bin/cleanup.sh >> /var/log/cleanup.log 2>&1
-        echo "[AUTO-CLEANUP] Kész!"
         sleep 3600
     fi
     sleep 300
 done
 AUTOCLEAN
-
 chmod +x /usr/local/bin/auto-cleanup.sh
 
 echo "[INFO] Supervisord indítása..."
