@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64 \
     -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
 
-# ── Playit.gg tunnel telepítése (A bore helyett) ──
+# ── Playit.gg tunnel telepítése ──
 RUN curl -SsL https://playit-cloud.github.io/ppa/key.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/playit.gpg && \
     echo "deb [arch=amd64] https://playit-cloud.github.io/ppa/data ./ " | tee /etc/apt/sources.list.d/playit.list && \
     apt-get update && apt-get install -y playit
@@ -95,36 +95,14 @@ RUN cat > /usr/local/bin/cleanup.sh << 'CLEANUP'
 echo "════════════════════════════════════════"
 echo "  🧹 MEMÓRIA TISZTÍTÁS"
 echo "════════════════════════════════════════"
-echo "📊 ELŐTTE:"
 free -h | grep Mem
-df -h / | grep -v Filesystem
-echo ""
-echo "🧹 Tisztítás folyamatban..."
 apt-get clean 2>/dev/null || true
-apt-get autoclean 2>/dev/null || true
-apt-get autoremove -y 2>/dev/null || true
 journalctl --vacuum-size=50M 2>/dev/null || true
-journalctl --vacuum-time=2d 2>/dev/null || true
 find /tmp -type f -mtime +1 -delete 2>/dev/null || true
-find /var/tmp -type f -mtime +1 -delete 2>/dev/null || true
-find /root -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-find /home -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 pip3 cache purge 2>/dev/null || true
 npm cache clean --force 2>/dev/null || true
-find /var/log -type f -name "*.log.*" -delete 2>/dev/null || true
-find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
-find /var/log -type f -size +50M -exec truncate -s 10M {} \; 2>/dev/null || true
 truncate -s 0 /var/log/supervisord.log 2>/dev/null || true
-truncate -s 0 /var/log/playit.log 2>/dev/null || true
-truncate -s 0 /var/log/keepalive.log 2>/dev/null || true
-echo ""
 echo "✅ KÉSZ!"
-echo ""
-echo "📊 UTÁNA:"
-free -h | grep Mem
-df -h / | grep -v Filesystem
-echo ""
-echo "════════════════════════════════════════"
 CLEANUP
 RUN chmod +x /usr/local/bin/cleanup.sh
 
@@ -155,7 +133,6 @@ RUN cat > /var/www/html/index.html << 'HTML'
         .status{text-align:center;padding:15px;border-radius:8px;font-size:1.2em;font-weight:bold;margin-bottom:15px;background:#0d2818;border:1px solid #238636;color:#7ee787}
         .keepalive{background:#0d2818;border:1px solid #238636;padding:15px;border-radius:8px;text-align:center;margin-bottom:15px}
         .keepalive h3{color:#7ee787;margin-bottom:5px}
-        .keepalive p{color:#8b949e;font-size:13px}
         @media(max-width:768px){.row{grid-template-columns:1fr}}
     </style>
 </head>
@@ -194,9 +171,7 @@ RUN cat > /var/www/html/index.html << 'HTML'
 info              # Neofetch + SFTP info
 mem               # Memória állapot
 cleanup           # Memória tisztítás
-htop              # Folyamatok
-cd /var/www/html  # Weboldal mappa
-nano index.html   # Szerkesztés</pre>
+htop              # Folyamatok</pre>
         </div>
     </div>
 </div>
@@ -226,13 +201,6 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-        proxy_send_timeout 86400;
-        proxy_buffering off;
-        proxy_cache off;
     }
 }
 NGINX
